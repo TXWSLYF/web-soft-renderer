@@ -1,5 +1,6 @@
 import Matrix, { Vector3 } from "./Matrix";
 import Triangle from "./Triangle";
+import { insideTriangle, computeBarycentric2D } from "./Utils";
 
 export enum BufferType {
   Color = 1,
@@ -185,8 +186,8 @@ class Rasterizer {
         colors[index[2]][2]
       );
 
-      this.rasterizeWireframe(t);
-      // this.rasterizeTriangle(t);
+      // this.rasterizeWireframe(t);
+      this.rasterizeTriangle(t);
     });
   }
 
@@ -194,6 +195,51 @@ class Rasterizer {
     this.drawLine(t.c(), t.a());
     this.drawLine(t.c(), t.b());
     this.drawLine(t.b(), t.a());
+  }
+
+  rasterizeTriangle(t: Triangle) {
+    const v0 = t.v[0];
+    const v1 = t.v[1];
+    const v2 = t.v[2];
+
+    // 第一步：找到三角形的 2 维 bounding box
+    let max_x = Math.max(v0[0], Math.max(v1[0], v2[0]));
+    let min_x = Math.min(v0[0], Math.min(v1[0], v2[0]));
+    let max_y = Math.max(v0[1], Math.max(v1[1], v2[1]));
+    let min_y = Math.min(v0[1], Math.min(v1[1], v2[1]));
+
+    max_x = Math.trunc(max_x);
+    max_y = Math.trunc(max_y);
+    min_x = Math.trunc(min_x);
+    min_y = Math.trunc(min_y);
+
+    // 第二步：遍历 bounding box 内的所有像素，然后使用像素中 心的屏幕空间坐标来检查中心点是否在三角形内。
+    for (let x = min_x; x <= max_x; x++) {
+      for (let y = min_y; y <= max_y; y++) {
+        if (insideTriangle(x + 0.5, y + 0.5, t)) {
+          const [c1, c2, c3] = computeBarycentric2D(x + 0.5, y + 0.5, t.v);
+
+          // 计算采样点深度插值
+          const z = c1 * t.v[0][2] + c2 * t.v[1][2] + c3 * t.v[2][2];
+
+          if (z < this.depthBuffer[this.getIndex(x, y)]) {
+            const color1 = t.color[0];
+            const color2 = t.color[1];
+            const color3 = t.color[2];
+
+            // 计算颜色插值
+            const color = [
+              c1 * color1[0] + c2 * color2[0] + c3 * color3[0],
+              c1 * color1[1] + c2 * color2[1] + c3 * color3[1],
+              c1 * color1[2] + c2 * color2[2] + c3 * color3[2],
+            ];
+
+            this.setPixel([x, y, 1], color);
+            this.depthBuffer[this.getIndex(x, y)] = z;
+          }
+        }
+      }
+    }
   }
 
   drawLine(begin: number[], end: number[]) {
@@ -279,6 +325,10 @@ class Rasterizer {
 
     const ind = (this.height - point[1]) * this.width + point[0];
     this.frameBuffer[ind] = color;
+  }
+
+  getIndex(x: number, y: number) {
+    return (this.height - 1 - y) * this.width + x;
   }
 }
 
