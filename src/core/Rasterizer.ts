@@ -33,6 +33,11 @@ class Rasterizer {
     [key: string]: Vector3[];
   } = {};
 
+  // 顶点颜色数据
+  colBuffer: {
+    [key: string]: Vector3[];
+  } = {};
+
   // 模型变换矩阵，4 * 4 矩阵
   model: number[][] = Matrix.getIdentityMatrix(4);
 
@@ -85,6 +90,13 @@ class Rasterizer {
     return nextId;
   }
 
+  loadColors(cols: Vector3[]) {
+    const nextId = this.getNextId();
+    this.colBuffer[nextId] = cols;
+
+    return nextId;
+  }
+
   setModel(model: number[][]) {
     this.model = model;
   }
@@ -97,7 +109,12 @@ class Rasterizer {
     this.projection = projection;
   }
 
-  draw(posBufferId: number, indBufferId: number, type: Primitive) {
+  draw(
+    posBufferId: number,
+    indBufferId: number,
+    colBufferId: number,
+    type: Primitive
+  ) {
     if (type !== Primitive.Triangle) {
       throw new Error(
         "Drawing primitives other than triangle is not implemented yet!"
@@ -112,6 +129,7 @@ class Rasterizer {
     );
     const positions = this.posBuffer[posBufferId];
     const indexs = this.indBuffer[indBufferId];
+    const colors = this.colBuffer[colBufferId];
 
     indexs.forEach((index) => {
       const t = new Triangle();
@@ -148,11 +166,27 @@ class Rasterizer {
         t.setVertex(i, v[i]);
       }
 
-      t.setColor(0, 255.0, 0.0, 0.0);
-      t.setColor(1, 0.0, 255.0, 0.0);
-      t.setColor(2, 0.0, 0.0, 255.0);
+      t.setColor(
+        0,
+        colors[index[0]][0],
+        colors[index[0]][1],
+        colors[index[0]][2]
+      );
+      t.setColor(
+        1,
+        colors[index[1]][0],
+        colors[index[1]][1],
+        colors[index[1]][2]
+      );
+      t.setColor(
+        2,
+        colors[index[2]][0],
+        colors[index[2]][1],
+        colors[index[2]][2]
+      );
 
       this.rasterizeWireframe(t);
+      // this.rasterizeTriangle(t);
     });
   }
 

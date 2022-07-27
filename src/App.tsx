@@ -4,8 +4,26 @@ import Matrix, { Vector3 } from './core/Matrix';
 import Rasterizer, { BufferType, Primitive } from './core/Rasterizer';
 
 const eyePos: Vector3 = [0, 0, 10]
-const pos: Vector3[] = [[2, 0, -2], [0, 2, -2], [-2, 0, -2]]
-const ind: Vector3[] = [[0, 1, 2]]
+const pos: Vector3[] = [
+  [2, 0, -2],
+  [0, 2, -2],
+  [-2, 0, -2],
+  [3.5, -1, -5],
+  [2.5, 1.5, -5],
+  [-1, 0.5, -5]
+]
+const ind: Vector3[] = [
+  [0, 1, 2],
+  [3, 4, 5]
+]
+const cols: Vector3[] = [
+  [217.0, 238.0, 185.0],
+  [217.0, 238.0, 185.0],
+  [217.0, 238.0, 185.0],
+  [185.0, 217.0, 238.0],
+  [185.0, 217.0, 238.0],
+  [185.0, 217.0, 238.0]
+]
 
 const App = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -13,6 +31,7 @@ const App = () => {
   const [isInited, setIsInited] = useState(false);
   const [posId, setPosId] = useState(0);
   const [indId, setIndId] = useState(0);
+  const [colId, setColId] = useState(0);
   const [width, setWidth] = useState(0)
   const [height, setHeight] = useState(0)
 
@@ -28,11 +47,11 @@ const App = () => {
       const context = canvasRef.current.getContext('2d');
 
       rst.clear(BufferType.Color | BufferType.Depth);
-      // rst.setModel(Matrix.getModelMatrix(angle));
-      rst.setModel(Matrix.getRotationMatrix([1, 1, 1], angle))
+      rst.setModel(Matrix.getModelMatrix(angle));
+      // rst.setModel(Matrix.getRotationMatrix([1, 1, 1], angle))
       rst.setView(Matrix.getViewMatrix(eyePos));
       rst.setProjection(Matrix.getProjectionMatrix(45, 1, 0.1, 50));
-      rst.draw(posId, indId, Primitive.Triangle);
+      rst.draw(posId, indId, colId, Primitive.Triangle);
 
       const imageData = context?.createImageData(width, height);
       if (imageData) {
@@ -49,7 +68,7 @@ const App = () => {
         context?.putImageData(imageData, 0, 0)
       }
     }
-  }, [isInited, posId, indId, width, height, angle, rst])
+  }, [isInited, posId, indId, colId, width, height, angle, rst])
 
   useEffect(() => {
     const handleOnKeyDown = (e: KeyboardEvent) => {
@@ -80,11 +99,13 @@ const App = () => {
       rst.init(width, height)
       const posId = rst.loadPositions(pos);
       const indId = rst.loadIndices(ind);
+      const colId = rst.loadColors(cols);
 
       setWidth(width)
       setHeight(height)
       setPosId(posId)
       setIndId(indId)
+      setColId(colId)
       setIsInited(true)
     }
   }, [rst]);
