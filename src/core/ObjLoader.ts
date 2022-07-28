@@ -34,13 +34,24 @@ export const objLoader = (objFileContent: string): Triangle[] => {
       return [v1, v2, v3];
     });
 
+  // f v1[/vt1][/vn1] v2[/vt2][/vn2] v3[/vt3][/vn3] ...
   fArr.forEach((f) => {
     const t = new Triangle();
 
     f.forEach((v, index) => {
-      const n = v.split("/");
-      const position = vArr[Number(n[0]) - 1];
+      const n = v.split("/").map((i) => Number(i));
+      const position = vArr[n[0] - 1];
       t.setVertex(index, position);
+
+      if (n[1]) {
+        const vt = vtArr[n[1] - 1];
+        t.setTexCoord(index, vt[0], vt[1]);
+      }
+
+      if (n[2]) {
+        const vn = vnArr[n[2] - 1];
+        t.setNormal(index, vn);
+      }
     });
 
     triangles.push(t);

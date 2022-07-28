@@ -1,4 +1,5 @@
 import Matrix, { Vector3 } from "./Matrix";
+import { objLoader } from "./ObjLoader";
 import Triangle from "./Triangle";
 import { insideTriangle, computeBarycentric2D } from "./Utils";
 
@@ -188,6 +189,52 @@ class Rasterizer {
 
       // this.rasterizeWireframe(t);
       this.rasterizeTriangle(t);
+    });
+  }
+
+  drawObj(objFileContent: string) {
+    const triangleList = objLoader(objFileContent);
+
+    const f1 = (100 - 0.1) / 2.0;
+    const f2 = (100 + 0.1) / 2.0;
+    const mvp = Matrix.multiplyMatrices(
+      Matrix.multiplyMatrices(this.projection, this.view),
+      this.model
+    );
+
+    triangleList.forEach((oldT) => {
+      const t = new Triangle();
+      let v = [
+        Matrix.matrixToPoint(
+          Matrix.multiplyMatrices(mvp, Matrix.pointToMatrix(oldT.a(), 1))
+        ),
+        Matrix.matrixToPoint(
+          Matrix.multiplyMatrices(mvp, Matrix.pointToMatrix(oldT.b(), 1))
+        ),
+        Matrix.matrixToPoint(
+          Matrix.multiplyMatrices(mvp, Matrix.pointToMatrix(oldT.c(), 1))
+        ),
+      ];
+
+      v = v.map((vert) => {
+        return [
+          0.5 * this.width * (vert[0] + 1.0),
+          0.5 * this.height * (vert[1] + 1.0),
+          // 单纯放大了 z
+          vert[2] * f1 + f2,
+        ];
+      });
+
+      for (let i = 0; i < 3; i++) {
+        t.setVertex(i, v[i]);
+      }
+
+      t.setColor(0, 148, 121.0, 92.0);
+      t.setColor(1, 148, 121.0, 92.0);
+      t.setColor(2, 148, 121.0, 92.0);
+
+      this.rasterizeWireframe(t);
+      // this.rasterizeTriangle(t);
     });
   }
 

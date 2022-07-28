@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from './App.module.scss';
 import Matrix, { Vector3 } from './core/Matrix';
 import Rasterizer, { BufferType, Primitive } from './core/Rasterizer';
@@ -34,6 +34,7 @@ const App = () => {
   const [colId, setColId] = useState(0);
   const [width, setWidth] = useState(0)
   const [height, setHeight] = useState(0)
+  const [objFileContent, setObjFileContent] = useState('')
 
   // rotate angle
   const [angle, setAngle] = useState(0);
@@ -48,10 +49,13 @@ const App = () => {
 
       rst.clear(BufferType.Color | BufferType.Depth);
       rst.setModel(Matrix.getModelMatrix(angle));
-      // rst.setModel(Matrix.getRotationMatrix([1, 1, 1], angle))
-      rst.setView(Matrix.getViewMatrix(eyePos));
-      rst.setProjection(Matrix.getProjectionMatrix(45, 1, 0.1, 50));
-      rst.draw(posId, indId, colId, Primitive.Triangle);
+      // rst.setModel(Matrix.getRotationMatrix([-1, 1, 1], angle))
+
+      if (objFileContent) {
+        rst.drawObj(objFileContent);
+      } else {
+        rst.draw(posId, indId, colId, Primitive.Triangle)
+      }
 
       const imageData = context?.createImageData(width, height);
       if (imageData) {
@@ -68,7 +72,7 @@ const App = () => {
         context?.putImageData(imageData, 0, 0)
       }
     }
-  }, [isInited, posId, indId, colId, width, height, angle, rst])
+  }, [isInited, posId, indId, colId, objFileContent, width, height, angle, rst])
 
   useEffect(() => {
     const handleOnKeyDown = (e: KeyboardEvent) => {
@@ -101,6 +105,9 @@ const App = () => {
       const indId = rst.loadIndices(ind);
       const colId = rst.loadColors(cols);
 
+      rst.setView(Matrix.getViewMatrix(eyePos));
+      rst.setProjection(Matrix.getProjectionMatrix(45, 1, 0.1, 50));
+
       setWidth(width)
       setHeight(height)
       setPosId(posId)
@@ -110,11 +117,22 @@ const App = () => {
     }
   }, [rst]);
 
+  const handleFileChange = useCallback((e: any) => {
+    e.preventDefault()
+    const reader = new FileReader()
+    reader.onload = async (e: any) => {
+      const text = e.target.result
+      setObjFileContent(text)
+    };
+    reader.readAsText(e.target.files[0])
+  }, [])
+
   return useMemo(() => {
     return <div className={styles.app}>
+      <input type="file" onChange={handleFileChange} />
       <canvas ref={canvasRef} className={styles.appCanvas}></canvas>
     </div>
-  }, [])
+  }, [handleFileChange])
 }
 
 export default App;
