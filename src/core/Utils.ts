@@ -1,4 +1,4 @@
-import { mat4, vec3, vec4 } from "gl-matrix";
+import { mat3, mat4, vec3, vec4 } from "gl-matrix";
 import Triangle from "./Triangle";
 
 export const getModelMatrix = (rotationAngle: number): mat4 => {
@@ -241,4 +241,76 @@ export const computeBarycentric2D = (
       v[1][0] * v[0][1]);
 
   return [c1, c2, c3];
+};
+
+/**
+ * @description 计算绕任意过原点的轴的旋转变换矩阵
+ * @param axis 过原点向量
+ * @param angle 旋转角度
+ * 罗德里格斯旋转公式矩阵表示
+ * https://baike.baidu.com/item/%E7%BD%97%E5%BE%B7%E9%87%8C%E6%A0%BC%E6%97%8B%E8%BD%AC%E5%85%AC%E5%BC%8F/18878562?fr=aladdin#3
+ */
+export const getRotationMatrix = (axis: vec3, angle: number): mat4 => {
+  const rotation = (angle * Math.PI) / 180;
+  const axisLength = Math.sqrt(
+    Math.pow(axis[0], 2) + Math.pow(axis[1], 2) + Math.pow(axis[2], 2)
+  );
+
+  const axis1: vec3 = vec3.create();
+  vec3.scale(axis1, axis, 1 / axisLength);
+
+  const matrix2 = mat3.create();
+  const matrix3: mat3 = [
+    0,
+    -axis1[2],
+    axis1[1],
+    axis1[2],
+    0,
+    -axis1[0],
+    -axis1[1],
+    axis1[0],
+    0,
+  ];
+
+  const temp1 = mat3.multiplyScalar(mat3.create(), matrix2, Math.cos(rotation));
+  const temp2 = mat3.multiplyScalar(
+    mat3.create(),
+    [
+      axis1[0] * axis1[0],
+      axis1[0] * axis1[1],
+      axis1[0] * axis1[2],
+      axis1[1] * axis1[0],
+      axis1[1] * axis1[1],
+      axis1[1] * axis1[2],
+      axis1[2] * axis1[0],
+      axis1[2] * axis1[1],
+      axis1[2] * axis1[2],
+    ],
+    1 - Math.cos(rotation)
+  );
+  const temp3 = mat3.multiplyScalar(mat3.create(), matrix3, Math.sin(rotation));
+  const temp4 = mat3.add(
+    mat3.create(),
+    mat3.add(mat3.create(), temp1, temp2),
+    temp3
+  );
+
+  return [
+    temp4[0],
+    temp4[1],
+    temp4[2],
+    0,
+    temp4[3],
+    temp4[4],
+    temp4[5],
+    0,
+    temp4[6],
+    temp4[7],
+    temp4[8],
+    0,
+    0,
+    0,
+    0,
+    1,
+  ];
 };

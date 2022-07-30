@@ -1,5 +1,6 @@
-import { mat4, vec3, vec4 } from "gl-matrix";
+import { mat4, vec2, vec3, vec4 } from "gl-matrix";
 import { objLoader } from "./ObjLoader";
+import { FragmentShader } from "./Shader";
 import Triangle from "./Triangle";
 import { computeBarycentric2D, insideTriangle, mat4MulVec4 } from "./Utils";
 
@@ -48,6 +49,9 @@ class Rasterizer {
 
   // 投影矩阵
   projection: mat4 = mat4.create();
+
+  // 片段着色器
+  fragmentShader: FragmentShader | null = null;
 
   init(width: number, height: number) {
     this.width = width;
@@ -109,6 +113,10 @@ class Rasterizer {
 
   setProjection(projection: mat4) {
     this.projection = projection;
+  }
+
+  setFragmentShader(fragmentShader: FragmentShader) {
+    this.fragmentShader = fragmentShader;
   }
 
   getMvp(): mat4 {
@@ -208,32 +216,58 @@ class Rasterizer {
 
     triangleList.forEach((oldT) => {
       const t = new Triangle();
+
       let v: vec4[] = [
         mat4MulVec4(mvp, [oldT.a()[0], oldT.a()[1], oldT.a()[2], 1]),
         mat4MulVec4(mvp, [oldT.b()[0], oldT.b()[1], oldT.b()[2], 1]),
         mat4MulVec4(mvp, [oldT.c()[0], oldT.c()[1], oldT.c()[2], 1]),
       ];
-
       v.forEach((point) => {
         vec4.scale(point, point, 1 / point[3]);
       });
-
       v.forEach((point) => {
         point[0] = 0.5 * this.width * (point[0] + 1.0);
         point[1] = 0.5 * this.height * (point[1] + 1.0);
         point[2] = point[2] * f1 + f2;
       });
-
       for (let i = 0; i < 3; i++) {
         t.setVertex(i, [v[i][0], v[i][1], v[i][2]]);
+      }
+
+      const invTrans: mat4 = mat4.create();
+      mat4.mul(invTrans, this.model, this.view);
+      mat4.invert(invTrans, invTrans);
+      mat4.transpose(invTrans, invTrans);
+      const n: vec4[] = [
+        mat4MulVec4(invTrans, [
+          oldT.normal[0][0],
+          oldT.normal[0][1],
+          oldT.normal[0][2],
+          0,
+        ]),
+        mat4MulVec4(invTrans, [
+          oldT.normal[1][0],
+          oldT.normal[1][1],
+          oldT.normal[1][2],
+          0,
+        ]),
+        mat4MulVec4(invTrans, [
+          oldT.normal[2][0],
+          oldT.normal[2][1],
+          oldT.normal[2][2],
+          0,
+        ]),
+      ];
+      for (let i = 0; i < 3; i++) {
+        t.setNormal(i, [n[i][0], n[i][1], n[i][2]]);
       }
 
       t.setColor(0, [148, 121.0, 92.0]);
       t.setColor(1, [148, 121.0, 92.0]);
       t.setColor(2, [148, 121.0, 92.0]);
 
-      this.rasterizeWireframe(t);
-      // this.rasterizeTriangle(t);
+      // this.rasterizeWireframe(t);
+      this.rasterizeTriangle(t);
     });
   }
 
@@ -263,18 +297,73 @@ class Rasterizer {
           const z = c1 * t.v[0][2] + c2 * t.v[1][2] + c3 * t.v[2][2];
 
           if (z < this.depthBuffer[this.getIndex(x, y)]) {
-            const color1 = t.color[0];
-            const color2 = t.color[1];
-            const color3 = t.color[2];
-
             // 计算颜色插值
-            const color: vec3 = [
-              c1 * color1[0] + c2 * color2[0] + c3 * color3[0],
-              c1 * color1[1] + c2 * color2[1] + c3 * color3[1],
-              c1 * color1[2] + c2 * color2[2] + c3 * color3[2],
-            ];
+            const interpolatedColor: vec3 = vec3.create();
+            vec3.add(
+              interpolatedColor,
+              interpolatedColor,
+              vec3.scale(vec3.create(), t.color[0], c1)
+            );
+            vec3.add(
+              interpolatedColor,
+              interpolatedColor,
+              vec3.scale(vec3.create(), t.color[1], c2)
+            );
+            vec3.add(
+              interpolatedColor,
+              interpolatedColor,
+              vec3.scale(vec3.create(), t.color[2], c3)
+            );
 
-            this.setPixel([x, y, 1], color);
+            // 计算法线插值
+            const interpolatedNormal: vec3 = vec3.create();
+            vec3.add(
+              interpolatedNormal,
+              interpolatedNormal,
+              vec3.scale(vec3.create(), t.normal[0], c1)
+            );
+            vec3.add(
+              interpolatedNormal,
+              interpolatedNormal,
+              vec3.scale(vec3.create(), t.normal[1], c2)
+            );
+            vec3.add(
+              interpolatedNormal,
+              interpolatedNormal,
+              vec3.scale(vec3.create(), t.normal[2], c3)
+            );
+
+            // 坐标插值
+            const interpolatedTexcoords: vec2 = vec2.create();
+            vec2.add(
+              interpolatedTexcoords,
+              interpolatedTexcoords,
+              vec2.scale(vec2.create(), t.texCoords[0], c1)
+            );
+            vec2.add(
+              interpolatedTexcoords,
+              interpolatedTexcoords,
+              vec2.scale(vec2.create(), t.texCoords[1], c2)
+            );
+            vec2.add(
+              interpolatedTexcoords,
+              interpolatedTexcoords,
+              vec2.scale(vec2.create(), t.texCoords[2], c3)
+            );
+
+            if (this.fragmentShader) {
+              const pixelColor = this.fragmentShader({
+                viewPos: [1, 1, 1],
+                normal: interpolatedNormal,
+                texCoords: interpolatedTexcoords,
+                color: interpolatedColor,
+              });
+
+              this.setPixel([x, y], pixelColor);
+            } else {
+              this.setPixel([x, y], interpolatedColor);
+            }
+
             this.depthBuffer[this.getIndex(x, y)] = z;
           }
         }
@@ -359,7 +448,7 @@ class Rasterizer {
     }
   }
 
-  setPixel(point: number[], color: vec3) {
+  setPixel(point: vec2, color: vec3) {
     if (
       point[0] < 0 ||
       point[0] >= this.width ||

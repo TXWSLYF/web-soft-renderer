@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { vec3 } from "gl-matrix";
+import { mat4, vec3 } from "gl-matrix";
 import Rasterizer, { BufferType, Primitive } from "./core/Rasterizer";
-import { getModelMatrix, getProjectionMatrix, getViewMatrix } from "./core/Utils";
+import { getProjectionMatrix, getViewMatrix } from "./core/Utils";
 import styles from './App.module.scss';
+import { normalFragmentShader } from "./core/Shader";
 
-const eyePos: vec3 = [0, 0, 5]
+const eyePos: vec3 = [0, 0, 10]
 const pos: vec3[] = [
     [2, 0, -2],
     [0, 2, -2],
@@ -18,12 +19,12 @@ const ind: vec3[] = [
     [3, 4, 5]
 ]
 const cols: vec3[] = [
-    [217.0, 238.0, 185.0],
-    [217.0, 238.0, 185.0],
-    [217.0, 238.0, 185.0],
+    [217.0, 0, 185.0],
+    [0, 238.0, 185.0],
+    [217.0, 238.0, 0],
     [185.0, 217.0, 238.0],
     [185.0, 217.0, 238.0],
-    [185.0, 217.0, 238.0]
+    [0, 217.0, 238.0]
 ]
 
 const App = () => {
@@ -38,7 +39,7 @@ const App = () => {
     const [objFileContent, setObjFileContent] = useState('')
 
     // rotate angle
-    const [angle, setAngle] = useState(0);
+    const [angle, setAngle] = useState(160);
 
     useEffect(() => {
         if (!isInited) {
@@ -49,8 +50,10 @@ const App = () => {
             const context = canvasRef.current.getContext('2d');
 
             rst.clear(BufferType.Color | BufferType.Depth);
-            rst.setModel(getModelMatrix(angle));
-            // rst.setModel(Matrix.getRotationMatrix([-1, 1, 1], angle))
+
+            // rst.setModel(getModelMatrix(angle));
+            // rst.setModel(getRotationMatrix([0, 1, 0], angle))
+            rst.setModel(mat4.fromRotation(mat4.create(), (angle / 180) * Math.PI, [0, 1, 0]))
 
             if (objFileContent) {
                 rst.drawObj(objFileContent);
@@ -92,6 +95,7 @@ const App = () => {
 
             rst.setView(view);
             rst.setProjection(projection);
+            rst.setFragmentShader(normalFragmentShader);
             setWidth(width)
             setHeight(height)
             setPosId(posId)
