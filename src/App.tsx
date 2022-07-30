@@ -1,138 +1,140 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { vec3 } from "gl-matrix";
+import Rasterizer, { BufferType, Primitive } from "./core/Rasterizer";
+import { getModelMatrix, getProjectionMatrix, getViewMatrix } from "./core/Utils";
 import styles from './App.module.scss';
-import Matrix, { Vector3 } from './core/Matrix';
-import Rasterizer, { BufferType, Primitive } from './core/Rasterizer';
 
-const eyePos: Vector3 = [0, 0, 10]
-const pos: Vector3[] = [
-  [2, 0, -2],
-  [0, 2, -2],
-  [-2, 0, -2],
-  [3.5, -1, -5],
-  [2.5, 1.5, -5],
-  [-1, 0.5, -5]
+const eyePos: vec3 = [0, 0, 5]
+const pos: vec3[] = [
+    [2, 0, -2],
+    [0, 2, -2],
+    [-2, 0, -2],
+    [3.5, -1, -5],
+    [2.5, 1.5, -5],
+    [-1, 0.5, -5]
 ]
-const ind: Vector3[] = [
-  [0, 1, 2],
-  [3, 4, 5]
+const ind: vec3[] = [
+    [0, 1, 2],
+    [3, 4, 5]
 ]
-const cols: Vector3[] = [
-  [217.0, 238.0, 185.0],
-  [217.0, 238.0, 185.0],
-  [217.0, 238.0, 185.0],
-  [185.0, 217.0, 238.0],
-  [185.0, 217.0, 238.0],
-  [185.0, 217.0, 238.0]
+const cols: vec3[] = [
+    [217.0, 238.0, 185.0],
+    [217.0, 238.0, 185.0],
+    [217.0, 238.0, 185.0],
+    [185.0, 217.0, 238.0],
+    [185.0, 217.0, 238.0],
+    [185.0, 217.0, 238.0]
 ]
 
 const App = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [rst] = useState(new Rasterizer());
-  const [isInited, setIsInited] = useState(false);
-  const [posId, setPosId] = useState(0);
-  const [indId, setIndId] = useState(0);
-  const [colId, setColId] = useState(0);
-  const [width, setWidth] = useState(0)
-  const [height, setHeight] = useState(0)
-  const [objFileContent, setObjFileContent] = useState('')
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [rst] = useState(new Rasterizer());
+    const [isInited, setIsInited] = useState(false);
+    const [posId, setPosId] = useState(0);
+    const [indId, setIndId] = useState(0);
+    const [colId, setColId] = useState(0);
+    const [width, setWidth] = useState(0)
+    const [height, setHeight] = useState(0)
+    const [objFileContent, setObjFileContent] = useState('')
 
-  // rotate angle
-  const [angle, setAngle] = useState(0);
+    // rotate angle
+    const [angle, setAngle] = useState(0);
 
-  useEffect(() => {
-    if (!isInited) {
-      return
-    }
+    useEffect(() => {
+        if (!isInited) {
+            return
+        }
 
-    if (canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
+        if (canvasRef.current) {
+            const context = canvasRef.current.getContext('2d');
 
-      rst.clear(BufferType.Color | BufferType.Depth);
-      rst.setModel(Matrix.getModelMatrix(angle));
-      // rst.setModel(Matrix.getRotationMatrix([-1, 1, 1], angle))
+            rst.clear(BufferType.Color | BufferType.Depth);
+            rst.setModel(getModelMatrix(angle));
+            // rst.setModel(Matrix.getRotationMatrix([-1, 1, 1], angle))
 
-      if (objFileContent) {
-        rst.drawObj(objFileContent);
-      } else {
-        rst.draw(posId, indId, colId, Primitive.Triangle)
-      }
+            if (objFileContent) {
+                rst.drawObj(objFileContent);
+            } else {
+                rst.draw(posId, indId, colId, Primitive.Triangle)
+            }
 
-      const imageData = context?.createImageData(width, height);
-      if (imageData) {
-        rst.frameBuffer.forEach((color, index) => {
+            const imageData = context?.createImageData(width, height);
+            if (imageData) {
+                rst.frameBuffer.forEach((color, index) => {
 
-          if (imageData.data) {
-            imageData.data[index * 4] = color[0]
-            imageData.data[index * 4 + 1] = color[1]
-            imageData.data[index * 4 + 2] = color[2]
-            imageData.data[index * 4 + 3] = 255
-          }
-        })
+                    if (imageData.data) {
+                        imageData.data[index * 4] = color[0]
+                        imageData.data[index * 4 + 1] = color[1]
+                        imageData.data[index * 4 + 2] = color[2]
+                        imageData.data[index * 4 + 3] = 255
+                    }
+                })
 
-        context?.putImageData(imageData, 0, 0)
-      }
-    }
-  }, [isInited, posId, indId, colId, objFileContent, width, height, angle, rst])
+                context?.putImageData(imageData, 0, 0)
+            }
+        }
+    }, [isInited, posId, indId, colId, objFileContent, width, height, angle, rst])
 
-  useEffect(() => {
-    const handleOnKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'ArrowUp') {
-        setAngle(val => val + 1)
-      }
+    useEffect(() => {
+        if (canvasRef.current) {
+            const rect = canvasRef.current.getBoundingClientRect();
+            const { width, height } = rect;
 
-      if (e.code === 'ArrowDown') {
-        setAngle(val => val - 1)
-      }
-    }
+            canvasRef.current.width = width;
+            canvasRef.current.height = height;
 
-    window.addEventListener("keydown", handleOnKeyDown)
+            rst.init(width, height)
+            const posId = rst.loadPositions(pos);
+            const indId = rst.loadIndices(ind);
+            const colId = rst.loadColors(cols);
+            const view = getViewMatrix(eyePos);
+            const projection = getProjectionMatrix(45, 1, 0.1, 50);
 
-    return () => {
-      window.removeEventListener('keydown', handleOnKeyDown)
-    }
-  }, [])
+            rst.setView(view);
+            rst.setProjection(projection);
+            setWidth(width)
+            setHeight(height)
+            setPosId(posId)
+            setIndId(indId)
+            setColId(colId)
+            setIsInited(true)
+        }
+    }, [rst]);
 
-  useEffect(() => {
-    if (canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const { width, height } = rect;
+    useEffect(() => {
+        const handleOnKeyDown = (e: KeyboardEvent) => {
+            if (e.code === 'ArrowUp') {
+                setAngle(val => val + 1)
+            }
 
-      canvasRef.current.width = width;
-      canvasRef.current.height = height;
+            if (e.code === 'ArrowDown') {
+                setAngle(val => val - 1)
+            }
+        }
 
-      rst.init(width, height)
-      const posId = rst.loadPositions(pos);
-      const indId = rst.loadIndices(ind);
-      const colId = rst.loadColors(cols);
+        window.addEventListener("keydown", handleOnKeyDown)
 
-      rst.setView(Matrix.getViewMatrix(eyePos));
-      rst.setProjection(Matrix.getProjectionMatrix(45, 1, 0.1, 50));
+        return () => {
+            window.removeEventListener('keydown', handleOnKeyDown)
+        }
+    }, [])
 
-      setWidth(width)
-      setHeight(height)
-      setPosId(posId)
-      setIndId(indId)
-      setColId(colId)
-      setIsInited(true)
-    }
-  }, [rst]);
+    const handleFileChange = useCallback((e: any) => {
+        e.preventDefault()
+        const reader = new FileReader()
+        reader.onload = async (e: any) => {
+            const text = e.target.result
+            setObjFileContent(text)
+        };
+        reader.readAsText(e.target.files[0])
+    }, [])
 
-  const handleFileChange = useCallback((e: any) => {
-    e.preventDefault()
-    const reader = new FileReader()
-    reader.onload = async (e: any) => {
-      const text = e.target.result
-      setObjFileContent(text)
-    };
-    reader.readAsText(e.target.files[0])
-  }, [])
-
-  return useMemo(() => {
-    return <div className={styles.app}>
-      <input type="file" onChange={handleFileChange} />
-      <canvas ref={canvasRef} className={styles.appCanvas}></canvas>
-    </div>
-  }, [handleFileChange])
+    return useMemo(() => {
+        return <div className={styles.app}>
+            <input type="file" onChange={handleFileChange} />
+            <canvas ref={canvasRef} className={styles.appCanvas}></canvas>
+        </div>
+    }, [handleFileChange])
 }
 
 export default App;

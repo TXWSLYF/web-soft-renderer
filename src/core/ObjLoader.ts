@@ -1,3 +1,4 @@
+import { vec2, vec3 } from "gl-matrix";
 import Triangle from "./Triangle";
 
 // https://all3dp.com/1/obj-file-format-3d-printing-cad/
@@ -10,21 +11,21 @@ export const objLoader = (objFileContent: string): Triangle[] => {
     .map((v) => {
       const [, x, y, z] = v.split(" ");
 
-      return [x, y, z].map((i) => Number(i));
+      return [x, y, z].map((i) => Number(i)) as vec3;
     });
   const vtArr = objFileContentArr
     .filter((i) => i.startsWith("vt "))
     .map((vt) => {
       const [, u, v] = vt.split(" ");
 
-      return [u, v].map((i) => Number(i));
+      return [u, v].map((i) => Number(i)) as vec2;
     });
   const vnArr = objFileContentArr
     .filter((i) => i.startsWith("vn "))
     .map((vn) => {
       const [, x, y, z] = vn.split(" ");
 
-      return [x, y, z].map((i) => Number(i));
+      return [x, y, z].map((i) => Number(i)) as vec3;
     });
   const fArr = objFileContentArr
     .filter((i) => i.startsWith("f "))
@@ -45,7 +46,7 @@ export const objLoader = (objFileContent: string): Triangle[] => {
 
       if (n[1]) {
         const vt = vtArr[n[1] - 1];
-        t.setTexCoord(index, vt[0], vt[1]);
+        t.setTexCoord(index, vt);
       }
 
       if (n[2]) {

@@ -1,7 +1,7 @@
-import Matrix, { Vector3 } from "./Matrix";
+import { mat4, vec3, vec4 } from "gl-matrix";
 import { objLoader } from "./ObjLoader";
 import Triangle from "./Triangle";
-import { insideTriangle, computeBarycentric2D } from "./Utils";
+import { computeBarycentric2D, insideTriangle, mat4MulVec4 } from "./Utils";
 
 export enum BufferType {
   Color = 1,
@@ -18,7 +18,7 @@ class Rasterizer {
   height: number = 0;
 
   // 帧缓存
-  frameBuffer: number[][] = [];
+  frameBuffer: vec3[] = [];
 
   // 深度缓存
   depthBuffer: number[] = [];
@@ -27,27 +27,27 @@ class Rasterizer {
 
   // 顶点数据
   posBuffer: {
-    [key: string]: Vector3[];
+    [key: string]: vec3[];
   } = {};
 
   // 索引数据
   indBuffer: {
-    [key: string]: Vector3[];
+    [key: string]: vec3[];
   } = {};
 
   // 顶点颜色数据
   colBuffer: {
-    [key: string]: Vector3[];
+    [key: string]: vec3[];
   } = {};
 
-  // 模型变换矩阵，4 * 4 矩阵
-  model: number[][] = Matrix.getIdentityMatrix(4);
+  // 模型变换矩阵
+  model: mat4 = mat4.create();
 
   // 视图变换矩阵
-  view: number[][] = Matrix.getIdentityMatrix(4);
+  view: mat4 = mat4.create();
 
   // 投影矩阵
-  projection: number[][] = Matrix.getIdentityMatrix(4);
+  projection: mat4 = mat4.create();
 
   init(width: number, height: number) {
     this.width = width;
@@ -78,37 +78,47 @@ class Rasterizer {
     return this.nextId++;
   }
 
-  loadPositions(pos: Vector3[]) {
+  loadPositions(pos: vec3[]) {
     const nextId = this.getNextId();
     this.posBuffer[nextId] = pos;
 
     return nextId;
   }
 
-  loadIndices(ind: Vector3[]) {
+  loadIndices(ind: vec3[]) {
     const nextId = this.getNextId();
     this.indBuffer[nextId] = ind;
 
     return nextId;
   }
 
-  loadColors(cols: Vector3[]) {
+  loadColors(cols: vec3[]) {
     const nextId = this.getNextId();
     this.colBuffer[nextId] = cols;
 
     return nextId;
   }
 
-  setModel(model: number[][]) {
+  setModel(model: mat4) {
     this.model = model;
   }
 
-  setView(view: number[][]) {
+  setView(view: mat4) {
     this.view = view;
   }
 
-  setProjection(projection: number[][]) {
+  setProjection(projection: mat4) {
     this.projection = projection;
+  }
+
+  getMvp(): mat4 {
+    const { model, view, projection } = this;
+
+    const mvp = mat4.create();
+    mat4.mul(mvp, model, view);
+    mat4.mul(mvp, mvp, projection);
+
+    return mvp;
   }
 
   draw(
@@ -125,67 +135,64 @@ class Rasterizer {
 
     const f1 = (100 - 0.1) / 2.0;
     const f2 = (100 + 0.1) / 2.0;
-    const mvp = Matrix.multiplyMatrices(
-      Matrix.multiplyMatrices(this.projection, this.view),
-      this.model
-    );
+    const mvp = this.getMvp();
+
     const positions = this.posBuffer[posBufferId];
     const indexs = this.indBuffer[indBufferId];
     const colors = this.colBuffer[colBufferId];
 
     indexs.forEach((index) => {
       const t = new Triangle();
-      let v = [
-        Matrix.matrixToPoint(
-          Matrix.multiplyMatrices(
-            mvp,
-            Matrix.pointToMatrix(positions[index[0]], 1)
-          )
-        ),
-        Matrix.matrixToPoint(
-          Matrix.multiplyMatrices(
-            mvp,
-            Matrix.pointToMatrix(positions[index[1]], 1)
-          )
-        ),
-        Matrix.matrixToPoint(
-          Matrix.multiplyMatrices(
-            mvp,
-            Matrix.pointToMatrix(positions[index[2]], 1)
-          )
-        ),
+      let v: vec4[] = [
+        mat4MulVec4(mvp, [
+          positions[index[0]][0],
+          positions[index[0]][1],
+          positions[index[0]][2],
+          1,
+        ]),
+        mat4MulVec4(mvp, [
+          positions[index[1]][0],
+          positions[index[1]][1],
+          positions[index[1]][2],
+          1,
+        ]),
+        mat4MulVec4(mvp, [
+          positions[index[2]][0],
+          positions[index[2]][1],
+          positions[index[2]][2],
+          1,
+        ]),
       ];
 
-      v = v.map((vert) => {
-        return [
-          0.5 * this.width * (vert[0] + 1.0),
-          0.5 * this.height * (vert[1] + 1.0),
-          vert[2] * f1 + f2,
-        ];
+      v.forEach((point) => {
+        vec4.scale(point, point, 1 / point[3]);
+      });
+
+      v.forEach((point) => {
+        point[0] = 0.5 * this.width * (point[0] + 1.0);
+        point[1] = 0.5 * this.height * (point[1] + 1.0);
+        point[2] = point[2] * f1 + f2;
       });
 
       for (let i = 0; i < 3; i++) {
-        t.setVertex(i, v[i]);
+        t.setVertex(i, [v[i][0], v[i][1], v[i][2]]);
       }
 
-      t.setColor(
-        0,
+      t.setColor(0, [
         colors[index[0]][0],
         colors[index[0]][1],
-        colors[index[0]][2]
-      );
-      t.setColor(
-        1,
+        colors[index[0]][2],
+      ]);
+      t.setColor(1, [
         colors[index[1]][0],
         colors[index[1]][1],
-        colors[index[1]][2]
-      );
-      t.setColor(
-        2,
+        colors[index[1]][2],
+      ]);
+      t.setColor(2, [
         colors[index[2]][0],
         colors[index[2]][1],
-        colors[index[2]][2]
-      );
+        colors[index[2]][2],
+      ]);
 
       // this.rasterizeWireframe(t);
       this.rasterizeTriangle(t);
@@ -197,51 +204,37 @@ class Rasterizer {
 
     const f1 = (100 - 0.1) / 2.0;
     const f2 = (100 + 0.1) / 2.0;
-    const mvp = Matrix.multiplyMatrices(
-      Matrix.multiplyMatrices(this.projection, this.view),
-      this.model
-    );
+    const mvp = this.getMvp();
 
     triangleList.forEach((oldT) => {
       const t = new Triangle();
-      let v = [
-        Matrix.matrixToPoint(
-          Matrix.multiplyMatrices(mvp, Matrix.pointToMatrix(oldT.a(), 1))
-        ),
-        Matrix.matrixToPoint(
-          Matrix.multiplyMatrices(mvp, Matrix.pointToMatrix(oldT.b(), 1))
-        ),
-        Matrix.matrixToPoint(
-          Matrix.multiplyMatrices(mvp, Matrix.pointToMatrix(oldT.c(), 1))
-        ),
+      let v: vec4[] = [
+        mat4MulVec4(mvp, [oldT.a()[0], oldT.a()[1], oldT.a()[2], 1]),
+        mat4MulVec4(mvp, [oldT.b()[0], oldT.b()[1], oldT.b()[2], 1]),
+        mat4MulVec4(mvp, [oldT.c()[0], oldT.c()[1], oldT.c()[2], 1]),
       ];
 
-      v = v.map((vert) => {
-        return [
-          0.5 * this.width * (vert[0] + 1.0),
-          0.5 * this.height * (vert[1] + 1.0),
-          // 单纯放大了 z
-          vert[2] * f1 + f2,
-        ];
+      v.forEach((point) => {
+        vec4.scale(point, point, 1 / point[3]);
+      });
+
+      v.forEach((point) => {
+        point[0] = 0.5 * this.width * (point[0] + 1.0);
+        point[1] = 0.5 * this.height * (point[1] + 1.0);
+        point[2] = point[2] * f1 + f2;
       });
 
       for (let i = 0; i < 3; i++) {
-        t.setVertex(i, v[i]);
+        t.setVertex(i, [v[i][0], v[i][1], v[i][2]]);
       }
 
-      t.setColor(0, 148, 121.0, 92.0);
-      t.setColor(1, 148, 121.0, 92.0);
-      t.setColor(2, 148, 121.0, 92.0);
+      t.setColor(0, [148, 121.0, 92.0]);
+      t.setColor(1, [148, 121.0, 92.0]);
+      t.setColor(2, [148, 121.0, 92.0]);
 
       this.rasterizeWireframe(t);
       // this.rasterizeTriangle(t);
     });
-  }
-
-  rasterizeWireframe(t: Triangle) {
-    this.drawLine(t.c(), t.a());
-    this.drawLine(t.c(), t.b());
-    this.drawLine(t.b(), t.a());
   }
 
   rasterizeTriangle(t: Triangle) {
@@ -275,7 +268,7 @@ class Rasterizer {
             const color3 = t.color[2];
 
             // 计算颜色插值
-            const color = [
+            const color: vec3 = [
               c1 * color1[0] + c2 * color2[0] + c3 * color3[0],
               c1 * color1[1] + c2 * color2[1] + c3 * color3[1],
               c1 * color1[2] + c2 * color2[2] + c3 * color3[2],
@@ -289,13 +282,19 @@ class Rasterizer {
     }
   }
 
-  drawLine(begin: number[], end: number[]) {
+  rasterizeWireframe(t: Triangle) {
+    this.drawLine(t.c(), t.a());
+    this.drawLine(t.c(), t.b());
+    this.drawLine(t.b(), t.a());
+  }
+
+  drawLine(begin: vec3, end: vec3) {
     const x1 = Math.trunc(begin[0]);
     const y1 = Math.trunc(begin[1]);
     const x2 = Math.trunc(end[0]);
     const y2 = Math.trunc(end[1]);
 
-    const lineColor = [255, 255, 255];
+    const lineColor: vec3 = [255, 255, 255];
     let x, y, dx, dy, dx1, dy1, px, py, xe, ye, i;
 
     dx = x2 - x1;
@@ -360,7 +359,7 @@ class Rasterizer {
     }
   }
 
-  setPixel(point: number[], color: number[]) {
+  setPixel(point: number[], color: vec3) {
     if (
       point[0] < 0 ||
       point[0] >= this.width ||
